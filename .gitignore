@@ -1,0 +1,12 @@
+*.sln
+*.vcxproj
+*.filters
+*.user
+*.xml
+*.config
+.vs
+glad.c
+Libraries
+x64
+GBemuTests/x64
+GBemuTests/packages
