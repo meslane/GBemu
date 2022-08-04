@@ -3,6 +3,8 @@
 #include <string>
 #include <cstdlib>
 
+#include <iomanip>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -107,22 +109,24 @@ int main(void) {
 		}
 	}
 
-	uint8_t memory[65536] = { 0 };
-	memory[0] = 0x06;
-	memory[1] = 0xFF;
-	memory[2] = 0x48;
-	gbcpu* gb = new gbcpu(memory);
+	/* opcode tester */
+	for (uint16_t opcode = 0; opcode <= 255; opcode++) {
+		uint8_t nibble[2];
+		nibble[0] = opcode & 0x0F; //LSN
+		nibble[1] = (opcode >> 4) & 0x0F; //MSN
+		/* put statement to test here */
+		if (nibble[1] == 0x7 && nibble[0] <= 0x7 && opcode != 0x76) {
+			//printf("%d\n", opcode);
+			std::cout << std::setw(2) << std::setfill('0') << std::hex << opcode << std::dec << " ";
+		}
+		else {
+			std::cout << "xx ";
+		}
 
-	gb->tick();
-	gb->registerDump();
-	gb->tick();
-	gb->registerDump();
-	gb->tick();
-	gb->registerDump();
-	gb->tick();
-	gb->registerDump();
-
-	delete gb;
+		if ((opcode+1) % 16 == 0 && (opcode + 1 != 0)) {
+			std::cout << std::endl;
+		}
+	}
 
 	/* main loop */
 	while (!glfwWindowShouldClose(window)) {

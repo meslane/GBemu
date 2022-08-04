@@ -52,7 +52,7 @@ void gbcpu::tick() {
 	static uint8_t* dest;
 	static uint8_t immediate;
 	
-	/* NOP (1 cycle) */
+	/* NOP [1 cycle] */
 	if (opcode == 0x00) {
 		switch (cycle) {
 		case NEW_CYCLE:
@@ -61,8 +61,8 @@ void gbcpu::tick() {
 		}
 	}
 
-	/* LD dest,src (1 cycle) */
-	if (nibble[1] >= 0x4 && nibble[1] <= 0x7) {
+	/* LD dest,src [1 cycle] */
+	if (((nibble[1] >= 0x4 && nibble[1] <= 0x6)||(nibble[1] == 0x7 && nibble[0] >= 0x8)) && (nibble[0] % 0x8 != 0x6)) {
 		switch (cycle) {
 		case NEW_CYCLE:
 			switch (nibble[1]) {
@@ -91,7 +91,7 @@ void gbcpu::tick() {
 				}
 				break;
 			case 0x7:
-				if (nibble[0] > 0x8) {
+				if (nibble[0] >= 0x8) {
 					dest = &this->AF.half[1]; //A
 				}
 			}
@@ -129,7 +129,7 @@ void gbcpu::tick() {
 		}
 	}
 
-	/* LD r,n (2 cycles) */
+	/* LD dest,n [2 cycles] */
 	if ((nibble[0] % 8 == 0x6) && (nibble[1] <= 0x3) && (opcode != 0x36)) {
 		switch (cycle) {
 		case NEW_CYCLE:
@@ -173,7 +173,117 @@ void gbcpu::tick() {
 			*dest = immediate;
 			break;
 		}
-		
+	}
+
+	/* LD dest, (HL) [2 cycles] */
+	if ((nibble[1] >= 0x4 && nibble[1] <= 0x7) && (nibble[0] % 8 == 0x6) && (opcode != 0x76)) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			switch (opcode) {
+			case 0x46:
+				this->BC.half[1] = this->memory[this->HL.full];
+				break;
+			case 0x4E:
+				this->BC.half[0] = this->memory[this->HL.full];
+				break;
+			case 0x56:
+				this->DE.half[1] = this->memory[this->HL.full];
+				break;
+			case 0x5E:
+				this->DE.half[0] = this->memory[this->HL.full];
+				break;
+			case 0x66:
+				this->HL.half[1] = this->memory[this->HL.full];
+				break;
+			case 0x6E:
+				this->HL.half[0] = this->memory[this->HL.full];
+				break;
+			case 0x7E:
+				this->AF.half[1] = this->memory[this->HL.full];
+				break;
+			}
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (HL), src [2 cycles] */
+	if (nibble[1] == 0x7 && nibble[0] <= 0x7 && opcode != 0x76) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			switch (opcode) {
+			case 0x70:
+				this->memory[this->HL.full] = this->BC.half[1];
+				break;
+			case 0x71:
+				this->memory[this->HL.full] = this->BC.half[0];
+				break;
+			case 0x72:
+				this->memory[this->HL.full] = this->DE.half[1];
+				break;
+			case 0x73:
+				this->memory[this->HL.full] = this->DE.half[0];
+				break;
+			case 0x74:
+				this->memory[this->HL.full] = this->HL.half[1];
+				break;
+			case 0x75:
+				this->memory[this->HL.full] = this->HL.half[0];
+				break;
+			case 0x77:
+				this->memory[this->HL.full] = this->AF.half[1];
+				break;
+			}
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (HL), d8 [3 cycles] */
+	if (opcode == 0x36) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate = memory[PC];
+			PC++;
+			cycle = 2;
+			break;
+		case 1:
+			this->memory[this->HL.full] = immediate;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD A, (BC) [2 cycles]*/
+	if (opcode == 0x0A) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->AF.half[1] = this->memory[this->BC.full];
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD A, (DE) [2 cycles]*/
+	if (opcode == 0x1A) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->AF.half[1] = this->memory[this->DE.full];
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
 	}
 
 	/* fetch (happens same cycle as prev. instruction) */
