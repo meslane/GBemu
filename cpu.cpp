@@ -51,6 +51,9 @@ void gbcpu::tick() {
 	static uint8_t* src;
 	static uint8_t* dest;
 	static uint8_t immediate;
+
+	static uint16_t MSB;
+	static uint16_t LSB;
 	
 	/* NOP [1 cycle] */
 	if (opcode == 0x00) {
@@ -176,10 +179,18 @@ void gbcpu::tick() {
 	}
 
 	/* LD dest, (HL) [2 cycles] */
-	if ((nibble[1] >= 0x4 && nibble[1] <= 0x7) && (nibble[0] % 8 == 0x6) && (opcode != 0x76)) {
+	if (((nibble[1] >= 0x4 && nibble[1] <= 0x7) && (nibble[0] % 8 == 0x6) && (opcode != 0x76)) || (opcode == 0x2A) || (opcode == 0x3A)) {
 		switch (cycle) {
 		case NEW_CYCLE:
 			switch (opcode) {
+			case 0x2A: //increment
+				this->AF.half[1] = this->memory[this->HL.full];
+				this->HL.full++;
+				break;
+			case 0x3A: //decrement
+				this->AF.half[1] = this->memory[this->HL.full];
+				this->HL.full--;
+				break;
 			case 0x46:
 				this->BC.half[1] = this->memory[this->HL.full];
 				break;
@@ -211,10 +222,18 @@ void gbcpu::tick() {
 	}
 
 	/* LD (HL), src [2 cycles] */
-	if (nibble[1] == 0x7 && nibble[0] <= 0x7 && opcode != 0x76) {
+	if ((nibble[1] == 0x7 && nibble[0] <= 0x7 && opcode != 0x76) || (opcode == 0x22) || (opcode == 0x32)) {
 		switch (cycle) {
 		case NEW_CYCLE:
 			switch (opcode) {
+			case 0x22: //increment
+				this->memory[this->HL.full] = this->AF.half[1];
+				this->HL.full++;
+				break;
+			case 0x32: //decrement
+				this->memory[this->HL.full] = this->AF.half[1];
+				this->HL.full--;
+				break;
 			case 0x70:
 				this->memory[this->HL.full] = this->BC.half[1];
 				break;
@@ -267,6 +286,7 @@ void gbcpu::tick() {
 		switch (cycle) {
 		case NEW_CYCLE:
 			this->AF.half[1] = this->memory[this->BC.full];
+			cycle = 1;
 			break;
 		case 0:
 			//do nothing
@@ -279,6 +299,135 @@ void gbcpu::tick() {
 		switch (cycle) {
 		case NEW_CYCLE:
 			this->AF.half[1] = this->memory[this->DE.full];
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (BC), A [2 cycles]*/
+	if (opcode == 0x02) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->memory[this->BC.full] = this->AF.half[1];
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (DE), A [2 cycles]*/
+	if (opcode == 0x12) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->memory[this->DE.full] = this->AF.half[1];
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD A, (nn) [4 cycles] */
+	if (opcode == 0xFA) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			LSB = this->memory[PC];
+			PC++;
+			cycle = 3;
+			break;
+		case 2:
+			MSB = this->memory[PC];
+			PC++;
+			break;
+		case 1:
+			this->AF.half[1] = this->memory[(MSB << 8) | (LSB & 0x00FF)];
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (nn), A [4 cycles] */
+	if (opcode == 0xEA) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			LSB = this->memory[PC];
+			PC++;
+			cycle = 3;
+			break;
+		case 2:
+			MSB = this->memory[PC];
+			PC++;
+			break;
+		case 1:
+			this->memory[(MSB << 8) | (LSB & 0x00FF)] = this->AF.half[1];
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD A, (C) [2 cycles] */
+	if (opcode == 0xF2) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->AF.half[1] = this->memory[0xFF00 | (static_cast<uint16_t>(this->BC.half[0]) & 0x00FF)];
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD (C), A [2 cycles] */
+	if (opcode == 0xE2) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->memory[0xFF00 | (static_cast<uint16_t>(this->BC.half[0]) & 0x00FF)] = this->AF.half[1];
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LDH A, (n) [3 cycles] */
+	if (opcode == 0xF0) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate = this->memory[PC];
+			PC++;
+			cycle = 2;
+			break;
+		case 1:
+			this->AF.half[1] = this->memory[0xFF00 | (static_cast<uint16_t>(immediate) & 0x00FF)];
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LDH (n), A [3 cycles] */
+	if (opcode == 0xE0) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate = this->memory[PC];
+			PC++;
+			cycle = 2;
+			break;
+		case 1:
+			this->memory[0xFF00 | (static_cast<uint16_t>(immediate) & 0x00FF)] = this->AF.half[1];
 			break;
 		case 0:
 			//do nothing
