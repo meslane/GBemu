@@ -3,6 +3,11 @@
 
 #include <cstdint>
 
+#define Z_FLAG 7 //zero flag
+#define S_FLAG 6 //subtract flag
+#define H_FLAG 5 //half carry flag
+#define C_FLAG 4 //carry flag
+
 #define HIGH_BYTE 1
 #define LOW_BYTE 0
 
@@ -49,6 +54,10 @@ class gbcpu {
 		/* execution variables */
 		uint8_t opcode;
 		uint8_t cycle;
+
+		uint8_t getFlag(uint8_t flag);
+		void setFlag(uint8_t flag, uint8_t val);
+		void ALU(uint8_t operation, uint8_t r2);
 
 	public:
 		gbcpu(uint8_t* memory);

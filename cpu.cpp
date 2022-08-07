@@ -1,4 +1,5 @@
 #include "cpu.h"
+#include "utils.h"
 
 #include <iostream>
 
@@ -45,15 +46,130 @@ void gbcpu::registerDump() {
 	printf("Opcode: %d, Cycle: %d\n\n", opcode, cycle);
 }
 
+uint8_t gbcpu::getFlag(uint8_t flag) {
+	return getBit(this->AF.half[0], flag);
+}
+
+void gbcpu::setFlag(uint8_t flag, uint8_t val) {
+	this->AF.half[0] = setBit(this->AF.half[0], flag, val);
+}
+
+void gbcpu::ALU(uint8_t operation, uint8_t r2) {
+	/* subtract flag */
+	if (operation == 2 || operation == 3 || operation == 7) {
+		this->setFlag(S_FLAG, 1);
+	}
+	else {
+		this->setFlag(S_FLAG, 0);
+	}
+
+	switch (operation) {
+	case 0: //ADD
+		/* full carry logic */
+		if ((((this->AF.half[1] & 0xff) + (r2 & 0xff)) & 0x100) == 0x100) {
+			this->setFlag(C_FLAG, 1);
+		}
+		else {
+			this->setFlag(C_FLAG, 0);
+		}
+		/* half carry logic */
+		if ((((this->AF.half[1] & 0xf) + (r2 & 0xf)) & 0x10) == 0x10) {
+			this->setFlag(H_FLAG, 1);
+		}
+		else {
+			this->setFlag(H_FLAG, 0);
+		}
+
+		this->AF.half[1] += r2;
+		break;
+	case 1: //ADC
+		if ((((this->AF.half[1] & 0xff) + (r2 & 0xff) + this->getFlag(C_FLAG)) & 0x100) == 0x100) {
+			this->setFlag(C_FLAG, 1);
+		}
+		else {
+			this->setFlag(C_FLAG, 0);
+		}
+
+		if ((((this->AF.half[1] & 0xf) + (r2 & 0xf) + this->getFlag(C_FLAG)) & 0x10) == 0x10) {
+			this->setFlag(H_FLAG, 1);
+		}
+		else {
+			this->setFlag(H_FLAG, 0);
+		}
+
+		this->AF.half[1] += (r2 + this->getFlag(C_FLAG));
+		break;
+	case 2: //SUB
+		if ((((this->AF.half[1] & 0xff) - (r2 & 0xff)) & 0x100) == 0x100) {
+			this->setFlag(C_FLAG, 1);
+		}
+		else {
+			this->setFlag(C_FLAG, 0);
+		}
+
+		if ((((this->AF.half[1] & 0xf) - (r2 & 0xf)) & 0x10) == 0x10) {
+			this->setFlag(H_FLAG, 1);
+		}
+		else {
+			this->setFlag(H_FLAG, 0);
+		}
+
+		this->AF.half[1] -= r2;
+		break;
+	case 3: //SBC
+		if ((((this->AF.half[1] & 0xff) - (r2 & 0xff) - this->getFlag(C_FLAG)) & 0x100) == 0x100) {
+			this->setFlag(C_FLAG, 1);
+		}
+		else {
+			this->setFlag(C_FLAG, 0);
+		}
+
+		if ((((this->AF.half[1] & 0xf) - (r2 & 0xf) - this->getFlag(C_FLAG)) & 0x10) == 0x10) {
+			this->setFlag(H_FLAG, 1);
+		}
+		else {
+			this->setFlag(H_FLAG, 0);
+		}
+
+		this->AF.half[1] -= r2;
+		this->AF.half[1] -= this->getFlag(C_FLAG);
+		break;
+	case 4: //AND
+		this->AF.half[1] &= r2;
+		this->setFlag(H_FLAG, 1); //AND sets half carry to 1
+		break;
+	case 5: //XOR
+		this->AF.half[1] ^= r2;
+		break;
+	case 6: //OR
+		this->AF.half[1] |= r2;
+		break;
+	case 7: //CP
+		if (this->AF.half[1] - r2 == 0) {
+			this->setFlag(Z_FLAG, 1);
+		}
+		else {
+			this->setFlag(Z_FLAG, 0);
+		}
+		break;
+	}
+
+	/* zero flag is set by all operations */
+	if ((this->AF.half[1] == 0) && (operation != 7)) {
+		this->setFlag(Z_FLAG, 1);
+	}
+	else {
+		this->setFlag(Z_FLAG, 0);
+	}
+}
+
 void gbcpu::tick() {
 	static uint8_t nibble[2];
 
 	static uint8_t* src;
 	static uint8_t* dest;
 	static uint8_t immediate;
-
-	static uint16_t MSB;
-	static uint16_t LSB;
+	static registerPair immediate16;
 	
 	/* NOP [1 cycle] */
 	if (opcode == 0x00) {
@@ -337,16 +453,16 @@ void gbcpu::tick() {
 	if (opcode == 0xFA) {
 		switch (cycle) {
 		case NEW_CYCLE:
-			LSB = this->memory[PC];
+			immediate16.half[0] = this->memory[PC]; //LSB
 			PC++;
 			cycle = 3;
 			break;
 		case 2:
-			MSB = this->memory[PC];
+			immediate16.half[1] = this->memory[PC]; //MSB
 			PC++;
 			break;
 		case 1:
-			this->AF.half[1] = this->memory[(MSB << 8) | (LSB & 0x00FF)];
+			this->AF.half[1] = this->memory[immediate16.full];
 			break;
 		case 0:
 			//do nothing
@@ -358,16 +474,16 @@ void gbcpu::tick() {
 	if (opcode == 0xEA) {
 		switch (cycle) {
 		case NEW_CYCLE:
-			LSB = this->memory[PC];
+			immediate16.half[0] = this->memory[PC]; //LSB
 			PC++;
 			cycle = 3;
 			break;
 		case 2:
-			MSB = this->memory[PC];
+			immediate16.half[1] = this->memory[PC]; //MSB
 			PC++;
 			break;
 		case 1:
-			this->memory[(MSB << 8) | (LSB & 0x00FF)] = this->AF.half[1];
+			this->memory[immediate16.full] = this->AF.half[1];
 			break;
 		case 0:
 			//do nothing
@@ -431,6 +547,229 @@ void gbcpu::tick() {
 			break;
 		case 0:
 			//do nothing
+			break;
+		}
+	}
+
+	/* LD rr, nn [3 cycles ]*/
+	if ((nibble[0] == 0x1) && (nibble[1] <= 0x3)) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate16.half[0] = this->memory[PC]; //LSB
+			PC++;
+			cycle = 2;
+			break;
+		case 1:
+			immediate16.half[1] = this->memory[PC]; //MSB
+			PC++;
+			break;
+		case 0:
+			switch (opcode) {
+			case 0x01:
+				this->BC.full = immediate16.full;
+				break;
+			case 0x11:
+				this->DE.full = immediate16.full;
+				break;
+			case 0x21:
+				this->HL.full = immediate16.full;
+				break;
+			case 0x31:
+				this->SP = immediate16.full;
+				break;
+			}
+			break;
+		}
+	}
+
+	/* LD (a16), SP [5 cycles] */
+	if (opcode == 0x08) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate16.half[0] = this->memory[PC]; //LSB
+			PC++;
+			cycle = 4;
+			break;
+		case 3:
+			immediate16.half[1] = this->memory[PC]; //MSB
+			PC++;
+			break;
+		case 2:
+			this->memory[immediate16.full] = static_cast<uint8_t>(this->SP & 0x00FF); //LSB
+			break;
+		case 1:
+			this->memory[immediate16.full + 1] = static_cast<uint8_t>((this->SP >> 8) & 0x00FF); //MSB
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD SP, HL */
+	if (opcode == 0xF9) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->SP = this->HL.full;
+			cycle = 1;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* PUSH rr [4 cycles] */
+	if ((nibble[1] >= 0xC) && (nibble[0] == 0x5)) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			this->SP--;
+			cycle = 3;
+			break;
+		case 2:
+			switch (opcode) {
+			case 0xC5:
+				memory[this->SP] = this->BC.half[1];
+				break;
+			case 0xD5:
+				memory[this->SP] = this->DE.half[1];
+				break;
+			case 0xE5:
+				memory[this->SP] = this->HL.half[1];
+				break;
+			case 0xF5:
+				memory[this->SP] = this->AF.half[1];
+				break;
+			}
+			this->SP--;
+			break;
+		case 1:
+			switch (opcode) {
+			case 0xC5:
+				memory[this->SP] = this->BC.half[0];
+				break;
+			case 0xD5:
+				memory[this->SP] = this->DE.half[0];
+				break;
+			case 0xE5:
+				memory[this->SP] = this->HL.half[0];
+				break;
+			case 0xF5:
+				memory[this->SP] = this->AF.half[0];
+				break;
+			}
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* POP rr [3 cycles] */
+	if ((nibble[1] >= 0xC) && (nibble[0] == 0x1)) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			switch (opcode) {
+			case 0xC1:
+				this->BC.half[0] = this->memory[SP];
+				break;
+			case 0xD1:
+				this->DE.half[0] = this->memory[SP];
+				break;
+			case 0xE1:
+				this->HL.half[0] = this->memory[SP];
+				break;
+			case 0xF1:
+				this->AF.half[0] = this->memory[SP];
+				break;
+			}
+			this->SP++;
+			cycle = 2;
+			break;
+		case 1:
+			switch (opcode) {
+			case 0xC1:
+				this->BC.half[1] = this->memory[SP];
+				break;
+			case 0xD1:
+				this->DE.half[1] = this->memory[SP];
+				break;
+			case 0xE1:
+				this->HL.half[1] = this->memory[SP];
+				break;
+			case 0xF1:
+				this->AF.half[1] = this->memory[SP];
+				break;
+			}
+			this->SP++;
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* LD HL, SP+s8 */
+	if (opcode == 0xF8) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			immediate = this->memory[PC];
+			PC++;
+			cycle = 2;
+			break;
+		case 1:
+			/* flag setting */
+			if ((((this->SP & 0xf) + (immediate & 0xf)) & 0x10) == 0x10) { //half carry
+				this->AF.half[0] = setBit(this->AF.half[0], H_FLAG, 1);
+			}
+			else {
+				this->AF.half[0] = setBit(this->AF.half[0], H_FLAG, 0);
+			}
+			if ((((this->SP & 0xff) + (immediate & 0xff)) & 0x100) == 0x100) { //full carry
+				this->AF.half[0] = setBit(this->AF.half[0], C_FLAG, 1);
+			}
+			else {
+				this->AF.half[0] = setBit(this->AF.half[0], C_FLAG, 0);
+			}
+
+			this->HL.full = this->SP + static_cast<int8_t>(immediate);
+			break;
+		case 0:
+			//do nothing
+			break;
+		}
+	}
+
+	/* 8 bit ALU Operations [1 cycle] */
+	if ((nibble[1] >= 0x8) && (nibble[1] <= 0xB) && (nibble[1] % 8 != 0x6)) {
+		switch (cycle) {
+		case NEW_CYCLE:
+			switch (nibble[0] % 8) {
+			case 0x0:
+				immediate = this->BC.half[1];
+				break;
+			case 0x1:
+				immediate = this->BC.half[0];
+				break;
+			case 0x2:
+				immediate =this->DE.half[1];
+				break;
+			case 0x3:
+				immediate = this->DE.half[0];
+				break;
+			case 0x4:
+				immediate = this->HL.half[1];
+				break;
+			case 0x5:
+				immediate = this->HL.half[0];
+				break;
+			case 0x7:
+				immediate = this->AF.half[1];
+				break;
+			}
+
+			this->ALU((opcode - 0x80) / 8, immediate);
+			cycle = 0;
 			break;
 		}
 	}

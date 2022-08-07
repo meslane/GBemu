@@ -59,6 +59,14 @@ TEST(NOP, PCvalue) { //0x00
 	delete results;
 }
 
+TEST(LD_BC_d16, Load_0xFFFF) { //0x01
+	uint8_t memory[5] = { 0x01, 0xFF, 0xFF };
+	cpuDebugger* results = runAndDebug(memory, 4);
+
+	EXPECT_EQ(results->BC.full, 0xFFFF);
+	delete results;
+}
+
 TEST(LD_BC_ptr_A, Load_255) { //0x02
 	uint8_t memory[1024] = { 0x06, 0x01, 0x0E, 0xFF, 0x3E, 0xFF, 0x02 };
 	cpuDebugger* results = runAndDebug(memory, 20);
@@ -75,6 +83,22 @@ TEST(LD_B_d8, Load_255) { //0x06
 	delete results;
 }
 
+TEST(LD_a16_ptr_SP, Load_0xFFFF_to_0x1A0_LSB) { //0x08
+	uint8_t memory[512] = { 0x31, 0xFF, 0xFF, 0x08, 0xA0, 0x01 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(memory[0x1A0], 0xFF);
+	delete results;
+}
+
+TEST(LD_a16_ptr_SP, Load_0xFFFF_to_0x1A0_MSB) { //0x08
+	uint8_t memory[512] = { 0x31, 0xFF, 0xFF, 0x08, 0xA0, 0x01 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(memory[0x1A1], 0xFF);
+	delete results;
+}
+
 TEST(LD_A_BC_ptr, Load_255) { //0x0A
 	uint8_t memory[1024] = { 0x06, 0x01, 0x0E, 0xFF, 0x0A };
 	memory[0x01FF] = 0xFF;
@@ -88,6 +112,14 @@ TEST(LC_C_d8, Load_255) { //0x0E
 	cpuDebugger* results = runAndDebug(memory, 3);
 
 	EXPECT_EQ(results->BC.half[0], 0xFF);
+	delete results;
+}
+
+TEST(LD_DE_d16, Load_0xFFFF) { //0x11
+	uint8_t memory[5] = { 0x11, 0xFF, 0xFF };
+	cpuDebugger* results = runAndDebug(memory, 4);
+
+	EXPECT_EQ(results->DE.full, 0xFFFF);
 	delete results;
 }
 
@@ -120,6 +152,14 @@ TEST(LD_E_d8, Load_255) { //0x1E
 	cpuDebugger* results = runAndDebug(memory, 3);
 
 	EXPECT_EQ(results->DE.half[0], 0xFF);
+	delete results;
+}
+
+TEST(LD_HL_d16, Load_0xFFFF) { //0x21
+	uint8_t memory[5] = { 0x21, 0xFF, 0xFF };
+	cpuDebugger* results = runAndDebug(memory, 4);
+
+	EXPECT_EQ(results->HL.full, 0xFFFF);
 	delete results;
 }
 
@@ -161,6 +201,14 @@ TEST(LD_L_d8, Load_255) { //0x2E
 	cpuDebugger* results = runAndDebug(memory, 3);
 
 	EXPECT_EQ(results->HL.half[0], 0xFF);
+	delete results;
+}
+
+TEST(LD_SP_d16, Load_0xFFFF) { //0x31
+	uint8_t memory[5] = { 0x31, 0xFF, 0xFF };
+	cpuDebugger* results = runAndDebug(memory, 4);
+
+	EXPECT_EQ(results->SP, 0xFFFF);
 	delete results;
 }
 
@@ -326,6 +374,54 @@ TEST(LD_HL_ptr_A, LOAD_64) { //0x77
 	delete results;
 }
 
+TEST(POP_BC, check_registers_are_same) { //0xC1
+	uint8_t memory[256] = { 0x31, 0x80, 0x00, 0x01, 0xB0, 0xA0, 0xC5, 0x01, 0x00, 0x00, 0xC1 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(results->getAllRegisters(), 0x0000A0B000000000);
+	delete results;
+}
+
+TEST(PUSH_BC, Push_to_0x40_check_MSB) { //0xC5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x01, 0xC0, 0xB0, 0xC5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3F], 0xB0);
+	delete results;
+}
+
+TEST(PUSH_BC, Push_to_0x40_check_LSB) { //0xC5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x01, 0xC0, 0xB0, 0xC5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3E], 0xC0);
+	delete results;
+}
+
+TEST(POP_DE, check_registers_are_same) { //0xD1
+	uint8_t memory[256] = { 0x31, 0x80, 0x00, 0x11, 0xB0, 0xA0, 0xD5, 0x11, 0x00, 0x00, 0xD1 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(results->getAllRegisters(), 0x00000000A0B00000);
+	delete results;
+}
+
+TEST(PUSH_DE, Push_to_0x40_check_MSB) { //0xD5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x11, 0xC0, 0xB0, 0xD5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3F], 0xB0);
+	delete results;
+}
+
+TEST(PUSH_DE, Push_to_0x40_check_LSB) { //0xD5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x11, 0xC0, 0xB0, 0xD5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3E], 0xC0);
+	delete results;
+}
+
 TEST(LDH_n_ptr_A, Load_to_0xFFFF) { //0xE0
 	uint8_t memory[65536] = {0x3E, 0xA0, 0xE0, 0xFF};
 	cpuDebugger* results = runAndDebug(memory, 10);
@@ -334,11 +430,35 @@ TEST(LDH_n_ptr_A, Load_to_0xFFFF) { //0xE0
 	delete results;
 }
 
+TEST(POP_HL, check_registers_are_same) { //0xE1
+	uint8_t memory[256] = { 0x31, 0x80, 0x00, 0x21, 0xB0, 0xA0, 0xE5, 0x21, 0x00, 0x00, 0xE1 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(results->getAllRegisters(), 0x000000000000A0B0);
+	delete results;
+}
+
 TEST(LD_C_ptr_A, Load_to_0xFFFF) { //0xE2
 	uint8_t memory[65536] = { 0x3E, 0xA0, 0x0E, 0xFF, 0xE2};
 	cpuDebugger* results = runAndDebug(memory, 10);
 
 	EXPECT_EQ(memory[0xFFFF], 0xA0);
+	delete results;
+}
+
+TEST(PUSH_HL, Push_to_0x40_check_MSB) { //0xE5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x21, 0xC0, 0xB0, 0xE5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3F], 0xB0);
+	delete results;
+}
+
+TEST(PUSH_HL, Push_to_0x40_check_LSB) { //0xE5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x21, 0xC0, 0xB0, 0xE5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3E], 0xC0);
 	delete results;
 }
 
@@ -359,12 +479,76 @@ TEST(LDH_A_n_ptr, Load_from_0xFFFF) { //0xF0
 	delete results;
 }
 
+TEST(POP_AF, check_registers_are_same) { //0xF1
+	uint8_t memory[256] = { 0x31, 0x80, 0x00, 0x3E, 0xA0, 0xF5, 0x3E, 0x00, 0xF1 };
+	cpuDebugger* results = runAndDebug(memory, 30);
+
+	EXPECT_EQ(results->getAllRegisters(), 0xA000000000000000);
+	delete results;
+}
+
 TEST(LD_A_C_ptr, Load_from_0xFFFF) { //0xF2
 	uint8_t memory[65536] = { 0x0E, 0xFF, 0xF2 };
 	memory[65535] = 0xA0;
 	cpuDebugger* results = runAndDebug(memory, 10);
 
 	EXPECT_EQ(results->AF.half[1], 0xA0);
+	delete results;
+}
+
+TEST(PUSH_AF, Push_to_0x40_check_MSB) { //0xF5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x3E, 0xB0, 0xF5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3F], 0xB0);
+	delete results;
+}
+
+TEST(PUSH_AF, Push_to_0x40_check_LSB) { //0xF5
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0x3E, 0xB0, 0xF5 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(memory[0x3E], 0x00);
+	delete results;
+}
+
+TEST(LD_HL_SP_plus_r8, Test_plus_1) { //0xF8
+	uint8_t memory[128] = { 0x31, 0x40, 0x00, 0xF8, 0x01 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(results->HL.full, 0x41);
+	delete results;
+}
+
+TEST(LD_HL_SP_plus_r8, Test_minus_128) { //0xF8
+	uint8_t memory[128] = { 0x31, 0xFF, 0x00, 0xF8, 0x80 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(results->HL.full, 0x7F);
+	delete results;
+}
+
+TEST(LD_HL_SP_plus_r8, Test_half_carry) { //0xF8
+	uint8_t memory[128] = { 0x31, 0x08, 0x00, 0xF8, 0x08 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(results->AF.half[0], 0b00100000);
+	delete results;
+}
+
+TEST(LD_HL_SP_plus_r8, Test_full_carry) { //0xF8
+	uint8_t memory[128] = { 0x31, 0x80, 0x00, 0xF8, 0x80 };
+	cpuDebugger* results = runAndDebug(memory, 20);
+
+	EXPECT_EQ(results->AF.half[0], 0b00010000);
+	delete results;
+}
+
+TEST(LD_SP_HL, Load_FFA0) { //0xF9
+	uint8_t memory[10] = { 0x21, 0xA0, 0xFF, 0xF9 };
+	cpuDebugger* results = runAndDebug(memory, 10);
+
+	EXPECT_EQ(results->SP, 0xFFA0);
 	delete results;
 }
 
